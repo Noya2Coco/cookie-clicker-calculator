@@ -128,6 +128,41 @@ def init_db(json_path='cookie_clicker_upgrades.json'):
                 position INTEGER NOT NULL DEFAULT 0
             )
         ''')
+        # Populate from seeds (prefer seeds.py, fallback to JSON file)
+        try:
+            import importlib.util
+            spec = importlib.util.find_spec('seeds')
+            if spec is not None:
+                import seeds as seeds_mod
+                data = getattr(seeds_mod, 'SEEDS', [])
+            else:
+                data = None
+        except Exception:
+            data = None
+
+        if not data:
+            base = os.path.dirname(__file__)
+            json_path = os.path.join(base, 'cookie_clicker_upgrades.json')
+            if os.path.exists(json_path):
+                try:
+                    with open(json_path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                except Exception:
+                    data = []
+            else:
+                data = []
+
+        # Insert or update rows according to seed data (use seed_level for initial level)
+        for pos, item in enumerate(data):
+            name = item.get('name')
+            price = float(item.get('price', 0))
+            cps = float(item.get('cps', 0))
+            seed_level = int(item.get('seed_level', item.get('level', 0)))
+            cur.execute(
+                "INSERT OR REPLACE INTO upgrades (name, price, level, cps, position) VALUES (?,?,?,?,?)",
+                (name, price, seed_level, cps, pos)
+            )
+
         conn.commit()
         conn.close()
 
@@ -251,14 +286,58 @@ def reset_upgrades():
         backup_name = create_db_backup()
         if not backup_name:
             return jsonify({"success": False, "error": "Failed to create backup before reset"}), 500
+        # Reset levels to seed defaults (prefer seeds.py, fallback to JSON file)
+        try:
+            import importlib.util
+            spec = importlib.util.find_spec('seeds')
+            if spec is not None:
+                import seeds as seeds_mod
+                seed_data = getattr(seeds_mod, 'SEEDS', [])
+            else:
+                seed_data = None
+        except Exception:
+            seed_data = None
 
-        # Irreversible reset: set all levels to 0
+        if not seed_data:
+            base = os.path.dirname(__file__)
+            json_path = os.path.join(base, 'cookie_clicker_upgrades.json')
+            if os.path.exists(json_path):
+                try:
+                    with open(json_path, 'r', encoding='utf-8') as f:
+                        seed_data = json.load(f)
+                except Exception:
+                    seed_data = []
+            else:
+                seed_data = []
+
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute('UPDATE upgrades SET level = 0')
+
+        # If seed_data is empty, fall back to zeroing levels
+        if not seed_data:
+            cur.execute('UPDATE upgrades SET level = 0')
+        else:
+            # Build a mapping from name -> seed_level and update each row
+            for item in seed_data:
+                name = item.get('name')
+                seed_level = int(item.get('seed_level', item.get('level', 0)))
+                # Ensure row exists and set level accordingly
+                cur.execute(
+                    "INSERT OR REPLACE INTO upgrades (name, price, level, cps, position) "
+                    "VALUES (:name, COALESCE((SELECT price FROM upgrades WHERE name=:name), :price), :level, "
+                    "COALESCE((SELECT cps FROM upgrades WHERE name=:name), :cps), COALESCE((SELECT position FROM upgrades WHERE name=:name), :pos))",
+                    {
+                        'name': name,
+                        'price': float(item.get('price', 0)),
+                        'level': seed_level,
+                        'cps': float(item.get('cps', 0)),
+                        'pos': item.get('position', 0)
+                    }
+                )
+
         conn.commit()
         conn.close()
-        return jsonify({"success": True, "message": "All upgrade levels have been reset to 0", "backup": backup_name})
+        return jsonify({"success": True, "message": "Upgrades reset to seed defaults", "backup": backup_name})
     except Exception as e:
         return jsonify({"success": False, "error": f"Reset failed: {str(e)}"}), 500
 
