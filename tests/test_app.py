@@ -1,7 +1,3 @@
-import json
-import sqlite3
-
-import pytest
 import app as app_module
 
 

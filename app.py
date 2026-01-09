@@ -174,7 +174,12 @@ def compute_upgrade_value(upgrade):
     return upgrade['cps'] / truncated_price
 
 def get_best_upgrade(upgrades):
-    """Calculate and return the best upgrade with efficiency metrics"""
+    """Calculate and return the best upgrade with efficiency metrics
+    
+    Uses exponential time penalty to heavily discourage long-wait upgrades.
+    The efficiency formula: value / (time_to_reach ^ time_penalty_exponent)
+    This ensures that upgrades requiring long wait times are significantly penalized.
+    """
     unlocked = [u for i, u in enumerate(upgrades) 
                 if u["level"] > 0 or i == 0 or (u["level"] == 0 and upgrades[i - 1]["level"] >= 1)]
     
@@ -184,13 +189,19 @@ def get_best_upgrade(upgrades):
     total_cps = calculate_total_cps(upgrades)
     candidates = []
     
+    # Time penalty exponent: higher values = more aggressive penalty for long waits
+    # 1.0 = linear (old behavior), 1.5-2.0 = exponential penalty
+    time_penalty_exponent = 1.5
+    
     for u in unlocked:
         truncated_price = int(u['price'] * (1.3 ** u['level']))
         time_to_reach = calculate_time_to_reach_cost_cached(int(total_cps * 1000), int(truncated_price))
         
         if time_to_reach != float('inf') and time_to_reach > 0:
             value = compute_upgrade_value(u)
-            efficiency_ratio = value / time_to_reach if time_to_reach > 0 else 0
+            # Apply exponential penalty to time: longer times are exponentially worse
+            time_penalty = time_to_reach ** time_penalty_exponent
+            efficiency_ratio = value / time_penalty if time_penalty > 0 else 0
             candidates.append({
                 "name": u["name"],
                 "level": u["level"],

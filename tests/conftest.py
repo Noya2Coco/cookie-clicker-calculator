@@ -1,7 +1,5 @@
 import os
 import sqlite3
-import tempfile
-import shutil
 import pytest
 
 # Ensure `seeds` module is importable when running tests from different CWDs
