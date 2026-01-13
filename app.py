@@ -227,21 +227,51 @@ def get_upgrades():
     total_cps = calculate_total_cps(upgrades)
     best = get_best_upgrade(upgrades)
     
-    # Calculate metrics for all unlocked upgrades
-    unlocked_with_metrics = []
+    # Calculate metrics for all unlocked upgrades and normalize efficiency
+    temp_metrics = []
+    # Use the same time-penalty exponent as in get_best_upgrade to compute
+    # the per-upgrade raw efficiency so that the ranking shown to users
+    # matches the internal "best" computation.
+    time_penalty_exponent = 1.5
     for i, u in enumerate(upgrades):
         if u["level"] > 0 or i == 0 or (u["level"] == 0 and upgrades[i - 1]["level"] >= 1):
             price = int(u['price'] * (1.3 ** u['level']))
             time = calculate_time_to_reach_cost_cached(int(total_cps * 1000), int(price))
             value = compute_upgrade_value(u)
-            
-            unlocked_with_metrics.append({
+            # raw efficiency now uses the same exponential time penalty as
+            # get_best_upgrade: value / (time ^ time_penalty_exponent)
+            raw_eff = 0
+            if time is not None and time != float('inf') and time > 0:
+                time_penalty = time ** time_penalty_exponent
+                raw_eff = (value / time_penalty) if time_penalty > 0 else 0
+
+            temp_metrics.append({
                 **u,
                 "current_price": price,
                 "time_to_reach": time if time != float('inf') else None,
                 "value": value,
+                "raw_efficiency": raw_eff,
                 "is_best": best and u["name"] == best["name"]
             })
+
+    # Normalize efficiencies so best => 1 and weakest => 0 (linear scale)
+    raw_vals = [m['raw_efficiency'] for m in temp_metrics]
+    max_eff = max(raw_vals) if raw_vals else 0
+    min_eff = min(raw_vals) if raw_vals else 0
+
+    unlocked_with_metrics = []
+    for m in temp_metrics:
+        raw = m['raw_efficiency']
+        if max_eff > min_eff:
+            norm = (raw - min_eff) / (max_eff - min_eff)
+        else:
+            # if all equal, treat best as 1, others 1 as well if equal; else 0
+            norm = 1.0 if raw == max_eff and max_eff > 0 else (1.0 if max_eff == min_eff and max_eff > 0 else 0.0)
+
+        unlocked_with_metrics.append({
+            **m,
+            "efficiency": norm
+        })
     
     return jsonify({
         "upgrades": unlocked_with_metrics,
