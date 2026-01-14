@@ -80,40 +80,66 @@ header p {
 }
 
 .mode-selector {
+    position: relative;
     display: flex;
-    gap: 12px;
+    gap: 8px;
+    align-items: center;
     justify-content: center;
-    margin-bottom: 32px;
-    background: var(--bg-card);
-    padding: 8px;
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-sm);
-    width: fit-content;
-    margin-left: auto;
-    margin-right: auto;
-    border: 1px solid var(--border-color);
+    width: 100%;
+    max-width: 560px;
+    margin: 12px 0 20px 0;
 }
 
 .mode-btn {
-    padding: 12px 32px;
-    font-size: 0.95em;
-    font-weight: 500;
-    border: none;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    transition: all 0.2s ease;
+    position: relative;
+    flex: 1 1 50%;
+    width: 50%;
+    min-width: 0;
     background: transparent;
+    border: none;
+    padding: 10px 12px;
+    font-weight: 600;
+    font-size: 0.95rem;
     color: var(--text-secondary);
+    cursor: pointer;
+    z-index: 3; /* above mode-bg/slide */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* sliding background under the mode buttons, matches .stat-card */
+.mode-bg {
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(124,58,237,0.06), rgba(99,102,241,0.04));
+    box-shadow: 0 2px 8px rgba(16,24,40,0.04);
+    z-index: 1;
+}
+
+/* the sliding indicator that moves under the active button */
+.mode-slide {
+    position: absolute;
+    top: 4px;
+    left: 8px;
+    height: calc(100% - 8px);
+    width: calc(50% - 8px); /* half the container minus small inset */
+    border-radius: 10px;
+    background: linear-gradient(90deg, rgba(99,102,241,0.08), rgba(124,58,237,0.10));
+    box-shadow: 0 4px 18px rgba(124,58,237,0.06);
+    transition: transform 220ms cubic-bezier(.2,.9,.2,1);
+    z-index: 2;
+    pointer-events: none;
+    transform: translateX(0%);
 }
 
 .mode-btn.active {
-    background: var(--primary-color);
     color: white;
     box-shadow: var(--shadow-sm);
 }
 
 .mode-btn:hover:not(.active) {
-    background: #f1f5f9;
     color: var(--text-primary);
 }
 
@@ -152,6 +178,10 @@ header p {
     color: var(--primary-color);
     margin-bottom: 8px;
     letter-spacing: -0.025em;
+    white-space: nowrap;
+    overflow: hidden;
+    display: inline-block;
+    max-width: 100%;
 }
 
 .stat-label {

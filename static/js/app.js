@@ -28,14 +28,21 @@ function debounce(func, wait) {
     };
 }
 
-function switchMode(mode) {
+function switchMode(mode, btnEl) {
     currentMode = mode;
-    
-    // Update buttons
-    document.querySelectorAll('.mode-btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    event.target.classList.add('active');
+
+    // Update active class on buttons (ensure consistent equal-width layout)
+    const buttons = Array.from(document.querySelectorAll('.mode-btn'));
+    buttons.forEach(b => b.classList.toggle('active', b === btnEl));
+
+    // Slide the indicator: with equal-width buttons the slide is 50% and we translate it
+    const container = document.querySelector('.mode-selector');
+    const slide = container ? container.querySelector('.mode-slide') : null;
+    if (slide && btnEl) {
+        const index = buttons.indexOf(btnEl);
+        // translateX(0%) = left slot, translateX(100%) = right slot (we use the CSS inset)
+        slide.style.transform = index <= 0 ? 'translateX(0%)' : 'translateX(100%)';
+    }
 
     // Show/hide content
     if (mode === 'interactive') {
@@ -48,6 +55,25 @@ function switchMode(mode) {
         loadSimulationHistory();
     }
 }
+
+// Position the mode-bg under the currently active button on load / resize
+function initModeBg() {
+    const container = document.querySelector('.mode-selector');
+    if (!container) return;
+    const buttons = Array.from(container.querySelectorAll('.mode-btn'));
+    const activeIndex = buttons.findIndex(b => b.classList.contains('active'));
+    const slide = container.querySelector('.mode-slide');
+    if (!slide || buttons.length === 0) return;
+    // Ensure the slide uses the CSS half-width and a small inset (handled in CSS)
+    // Position by translating to the correct slot (0 or 100%)
+    const idx = (activeIndex <= 0) ? 0 : 1;
+    slide.style.transform = idx === 0 ? 'translateX(0%)' : 'translateX(100%)';
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+    initModeBg();
+    window.addEventListener('resize', () => initModeBg());
+});
 
 function formatNumber(num, decimals = null) {
     if (num === null || num === undefined || isNaN(Number(num))) return '-';
@@ -123,6 +149,25 @@ function normalizeLayoutForLight(layout) {
     return layout;
 }
 
+// Fit text inside stat-value elements by shrinking font-size until it fits
+function adjustStatSizes() {
+    const elements = document.querySelectorAll('.stat-value');
+    elements.forEach(el => {
+        const style = window.getComputedStyle(el);
+        const maxPx = Math.max(24, parseInt(style.fontSize || '24', 10));
+        let fs = Math.max(24, maxPx);
+        el.style.whiteSpace = 'nowrap';
+        el.style.overflow = 'hidden';
+        el.style.display = 'inline-block';
+        el.style.fontSize = fs + 'px';
+
+        while (el.scrollWidth > el.clientWidth && fs > 10) {
+            fs -= 1;
+            el.style.fontSize = fs + 'px';
+        }
+    });
+}
+
 async function loadUpgrades() {
     try {
         const response = await fetch('/api/upgrades');
@@ -166,6 +211,23 @@ async function loadUpgrades() {
 
             tbody.appendChild(row);
         });
+
+        // Aggregate some extra stats from the upgrades list
+        const totalUpgrades = data.upgrades.reduce((s, u) => s + (u.level || 0), 0);
+        const totalSpentEstimate = data.upgrades.reduce((s, u) => {
+            const base = (u.price !== undefined) ? u.price : (u.base_price !== undefined ? u.base_price : (u.current_price !== undefined ? u.current_price : 0));
+            return s + (base * (u.level || 0));
+        }, 0);
+
+        // Populate new stat cards (if present)
+        const elTotalUpgrades = document.getElementById('total-upgrades');
+        if (elTotalUpgrades) elTotalUpgrades.textContent = formatNumber(totalUpgrades, 0);
+
+        const elTotalSpent = document.getElementById('total-spent');
+        if (elTotalSpent) elTotalSpent.textContent = formatNumber(totalSpentEstimate, 0);
+
+        // Adjust stat sizes so numbers don't overflow their cards
+        adjustStatSizes();
 
         // Refresh chart
         refreshChart();
