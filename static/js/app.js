@@ -201,7 +201,9 @@ async function loadUpgrades() {
                 <td>${upgrade.level}</td>
                 <td>${formatNumber(upgrade.current_price)}</td>
                 <td>${formatNumber(upgrade.cps, 1)}</td>
-                <td>${upgrade.value ? upgrade.value.toExponential(2) : '-'}</td>
+                <td title="Raw: ${upgrade.raw_efficiency ? upgrade.raw_efficiency.toExponential(2) : (upgrade.value ? upgrade.value.toExponential(2) : '-')}">
+                    ${typeof upgrade.efficiency === 'number' ? formatNumber(upgrade.efficiency * 100, 2) + '%' : '-'}
+                </td>
                 <td>${upgrade.time_to_reach ? formatTime(upgrade.time_to_reach) : '-'}</td>
                 <td>
                     <button class="purchase-btn" onclick="purchaseUpgrade('${upgrade.name}')">Buy</button>
